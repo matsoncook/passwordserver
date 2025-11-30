@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Browser Hash Calculator</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom font */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7f9fb;
+        }
+        /* Custom styles for the input fields to create a single-line password/text box with a button */
+        .input-group {
+            display: flex;
+            align-items: center;
+            border: 1px solid #d1d5db; /* gray-300 */
+            border-radius: 0.5rem; /* rounded-lg */
+            transition: border-color 150ms;
+        }
+        /* Style for when the container is focused */
+        .input-group:focus-within {
+            border-color: #3b82f6; /* blue-500 */
+            box-shadow: 0 0 0 1px #3b82f6;
+        }
+        /* Style for the actual input element inside the group */
+        .input-group input {
+            border: none;
+            padding: 0.75rem;
+            flex-grow: 1;
+            /* Remove default focus ring since we handle it on the group */
+            outline: none;
+            background: transparent;
+        }
+        /* Style for the toggle button */
+        .input-group .toggle-btn {
+            flex-shrink: 0;
+            padding: 0.75rem 1rem;
+            border-left: 1px solid #e5e7eb; /* gray-200 */
+            color: #6b7280; /* gray-500 */
+            cursor: pointer;
+            transition: color 150ms;
+        }
+        .input-group .toggle-btn:hover {
+            color: #1f2937; /* gray-800 */
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+
+    <div class="w-full max-w-xl bg-white shadow-2xl rounded-xl p-8 space-y-6 border border-gray-100">
+        <h1 class="text-3xl font-extrabold text-gray-900 text-center border-b pb-3 mb-4">
+            Universal Hash Calculator
+        </h1>
+        <p class="text-sm text-gray-500 text-center">
+            This calculation is performed locally in your browser and is instant. The input string is never sent to a server.
+        </p>
+
+        <!-- Algorithm Selection -->
+        <div>
+            <label for="hashAlgorithm" class="block text-sm font-medium text-gray-700 mb-2">Select Hash Algorithm</label>
+            <select 
+                id="hashAlgorithm"
+                class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 focus:ring-2 transition duration-150"
+            >
+                <option value="SHA-256">SHA-256 (Recommended)</option>
+                <option value="SHA-1">SHA-1 (Legacy)</option>
+            </select>
+        </div>
+
+        <!-- Input Area (Changed to input type=password with toggle) -->
+        <div>
+            <label for="inputString" class="block text-sm font-medium text-gray-700 mb-2">Input Text to Hash</label>
+            <div class="input-group">
+                <!-- Changed to input type="password" to obscure text by default -->
+                <input 
+                    type="password"
+                    id="inputString" 
+                    placeholder="Enter any text here..."
+                    class="font-mono"
+                    autocomplete="off"
+                />
+                <button type="button" id="toggleInputVisibility" class="toggle-btn" title="View value">
+                    <!-- Icon and text updated by JS based on current state -->
+                    👁️ View
+                </button>
+            </div>
+        </div>
+
+        <!-- Calculate Button -->
+        <button 
+            id="hashButton"
+            class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-md text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-150 transform hover:scale-[1.01] active:scale-[0.99]"
+        >
+            Calculate Hash
+        </button>
+
+        <!-- Output Area (Changed hashOutput to input type=password readonly with toggle) -->
+        <div id="outputContainer" class="hidden space-y-4">
+            <div class="space-y-2">
+                <label class="block text-sm font-medium text-gray-700 mb-2">
+                    Hash Result (<span id="algorithmName">SHA-256</span>) 
+                    <!-- Hash Preview added here -->
+                    <span id="hashPreview" class="text-xs font-mono text-gray-500 ml-2"></span>
+                </label>
+                <div class="input-group bg-gray-50 border-gray-200">
+                    <!-- Changed to input type="password" to obscure text by default after calculation -->
+                    <input 
+                        type="password"
+                        id="hashOutput" 
+                        readonly
+                        value=""
+                        placeholder="Hash will appear here"
+                        class="font-mono text-gray-800 bg-gray-50 overflow-auto"
+                        onclick="this.select()"
+                    />
+                    <button type="button" id="toggleOutputVisibility" class="toggle-btn" title="View value">
+                        <!-- Initial state is View -->
+                        👁️ View
+                    </button>
+                </div>
+            </div>
+
+            <!-- Copy Button -->
+            <button 
+                id="copyButton" 
+                class="w-full py-2 px-4 border border-blue-600 rounded-lg shadow-sm text-sm font-medium text-blue-600 bg-white hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-150"
+            >
+                Copy to Clipboard
+            </button>
+        </div>
+        
+        <!-- Error/Message Box -->
+        <div id="messageBox" class="text-sm p-3 rounded-lg hidden" role="alert"></div>
+
+    </div>
+
+    <script>
+        // DOM Elements
+        const inputString = document.getElementById('inputString');
+        const hashButton = document.getElementById('hashButton');
+        const outputContainer = document.getElementById('outputContainer');
+        const hashOutput = document.getElementById('hashOutput');
+        const copyButton = document.getElementById('copyButton');
+        const messageBox = document.getElementById('messageBox');
+        const hashAlgorithmSelect = document.getElementById('hashAlgorithm');
+        const algorithmNameSpan = document.getElementById('algorithmName');
+        const toggleInputVisibility = document.getElementById('toggleInputVisibility');
+        const toggleOutputVisibility = document.getElementById('toggleOutputVisibility');
+        const hashPreview = document.getElementById('hashPreview'); // New DOM element
+
+        // Helper function to show temporary messages
+        function showMessage(text, type = 'info') {
+            messageBox.textContent = text;
+            // Removed specific color classes before adding new ones
+            messageBox.className = 'text-sm p-3 rounded-lg'; 
+            
+            if (type === 'error') {
+                messageBox.classList.add('bg-red-100', 'text-red-700');
+            } else if (type === 'success') {
+                messageBox.classList.add('bg-green-100', 'text-green-700');
+            } else { // info
+                messageBox.classList.add('bg-yellow-100', 'text-yellow-700');
+            }
+            messageBox.classList.remove('hidden');
+
+            setTimeout(() => {
+                messageBox.classList.add('hidden');
+            }, 3000);
+        }
+
+        // Converts an ArrayBuffer to a hexadecimal string
+        function bufferToHex(buffer) {
+            return Array.from(new Uint8Array(buffer))
+                .map(b => b.toString(16).padStart(2, '0'))
+                .join('');
+        }
+
+        /**
+         * Core Hashing Function - uses the native Web Crypto API for both SHA-256 and SHA-1
+         * @param {string} text - The input string
+         * @param {string} algorithm - The hashing algorithm ('SHA-256' or 'SHA-1')
+         * @returns {Promise<string|null>} The hex hash string or null on error
+         */
+        async function calculateHash(text, algorithm) {
+            try {
+                // Use native Web Crypto API for both SHA-256 and SHA-1
+                const encoder = new TextEncoder();
+                const data = encoder.encode(text);
+                
+                // The algorithm string for native crypto is "SHA-256" or "SHA-1"
+                const hashBuffer = await crypto.subtle.digest(algorithm, data);
+                
+                return bufferToHex(hashBuffer);
+                
+            } catch (error) {
+                console.error(`Hashing failed for ${algorithm}:`, error);
+                showMessage(`An error occurred during ${algorithm} hashing.`, 'error');
+                return null;
+            }
+        }
+        
+        // --- Visibility Toggle Logic ---
+        
+        /**
+         * Toggles the visibility (type) of an input element.
+         * @param {HTMLInputElement} inputElement The input field to toggle.
+         * @param {HTMLButtonElement} toggleButton The button element to update.
+         * @param {string} obscuredType The type used to hide the content (e.g., 'password').
+         */
+        function toggleVisibility(inputElement, toggleButton, obscuredType) {
+            const isObscured = inputElement.type === obscuredType;
+            const newType = isObscured ? 'text' : obscuredType;
+            inputElement.type = newType;
+
+            if (newType === 'text') {
+                toggleButton.innerHTML = '👁️ Hide';
+                toggleButton.title = 'Hide value';
+            } else {
+                toggleButton.innerHTML = '👁️ View';
+                toggleButton.title = 'View value';
+            }
+        }
+
+        // Initialize input to obscured state (password type)
+        inputString.type = 'password';
+        
+        // Initialize output to obscured state (password type)
+        hashOutput.type = 'password'; 
+        // We set the button text in HTML to match the password type state: '👁️ View'
+
+        toggleInputVisibility.addEventListener('click', () => {
+            // Input default obscured type is 'password'
+            toggleVisibility(inputString, toggleInputVisibility, 'password');
+        });
+        
+        toggleOutputVisibility.addEventListener('click', () => {
+            // Output default obscured type is 'password'
+            toggleVisibility(hashOutput, toggleOutputVisibility, 'password');
+        });
+        
+        // --- Existing Event Listeners ---
+
+        // Event listener for the Calculate button
+        hashButton.addEventListener('click', async () => {
+            // Use the actual value, regardless of input type
+            const text = inputString.value; 
+            const algorithm = hashAlgorithmSelect.value;
+            
+            if (!text) {
+                showMessage("Please enter some text to hash.", 'info');
+                return;
+            }
+            
+            // UI state change
+            hashButton.textContent = `Calculating ${algorithm}...`;
+            hashButton.disabled = true;
+            hashOutput.value = '...'; // Update value for input field
+            hashPreview.textContent = ''; // Clear preview
+
+            const hash = await calculateHash(text, algorithm);
+
+            if (hash) {
+                hashOutput.value = hash; // Set hash as the value of the input field
+                
+                // Update hash preview with the first three characters
+                hashPreview.textContent = `(${hash.substring(0, 3)}...)`; 
+                
+                // When a new hash is calculated, ensure it is obscured (password type)
+                hashOutput.type = 'password';
+                toggleOutputVisibility.innerHTML = '👁️ View';
+                toggleOutputVisibility.title = 'View value';
+                
+                algorithmNameSpan.textContent = algorithm;
+                outputContainer.classList.remove('hidden');
+                showMessage(`${algorithm} hash calculated successfully!`, 'success');
+            } else {
+                hashOutput.value = "Error calculating hash.";
+            }
+
+            // UI state reset
+            hashButton.textContent = "Calculate Hash";
+            hashButton.disabled = false;
+        });
+
+        // Event listener for algorithm change to update output label
+        hashAlgorithmSelect.addEventListener('change', () => {
+             algorithmNameSpan.textContent = hashAlgorithmSelect.value;
+             // Clear and hide output on algorithm change
+             hashOutput.value = "";
+             hashPreview.textContent = '';
+             outputContainer.classList.add('hidden'); 
+        });
+
+        // Event listener for the Copy button (using fallback for clipboard access)
+        copyButton.addEventListener('click', () => {
+            if (hashOutput.value && hashOutput.value !== "Error calculating hash." && hashOutput.value !== '...') {
+                // To copy, we must temporarily set the input type to text
+                const originalType = hashOutput.type;
+                hashOutput.type = 'text';
+                
+                // Select and copy
+                hashOutput.select();
+                try {
+                    document.execCommand('copy');
+                    showMessage("Hash copied to clipboard!", 'success');
+                } catch (err) {
+                    showMessage("Could not copy text. Please copy manually.", 'error');
+                }
+                
+                // Restore original type and deselect
+                hashOutput.type = originalType;
+                window.getSelection().removeAllRanges();
+
+            } else {
+                showMessage("Nothing to copy.", 'info');
+            }
+        });
+
+    </script>
+</body>
+</html>
