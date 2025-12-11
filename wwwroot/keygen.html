@@ -140,6 +140,11 @@
             justify-content: space-between;
             gap: 10px;
         }
+        .meta {
+            margin: 4px 0 10px;
+            font-size: 12px;
+            color: var(--muted);
+        }
         .code {
             background: #0a1124;
             border: 1px solid var(--border);
@@ -214,10 +219,12 @@
         <div class="grid">
             <div class="panel">
                 <h3>Public key <button class="copy" data-target="publicKey">Copy</button></h3>
+                <div class="meta" id="publicMeta">Awaiting seed.</div>
                 <div class="code" id="publicKey"><span class="placeholder">No key yet.</span></div>
             </div>
             <div class="panel">
                 <h3>Private key <button class="copy" data-target="privateKey">Copy</button></h3>
+                <div class="meta" id="privateMeta">Awaiting seed.</div>
                 <div class="code" id="privateKey"><span class="placeholder">No key yet.</span></div>
             </div>
         </div>
@@ -233,6 +240,8 @@
         const generateBtn = document.getElementById('generateBtn');
         const publicKeyBox = document.getElementById('publicKey');
         const privateKeyBox = document.getElementById('privateKey');
+        const publicMeta = document.getElementById('publicMeta');
+        const privateMeta = document.getElementById('privateMeta');
         const copyButtons = document.querySelectorAll('.copy');
 
         function setMessage(text, isError = false) {
@@ -242,10 +251,17 @@
         }
 
         function setCode(target, value) {
-            const el = target === 'public' ? publicKeyBox : privateKeyBox;
-            el.innerHTML = value
-                ? `<code>${value}</code>`
-                : '<span class="placeholder">No key yet.</span>';
+            const isPublic = target === 'public';
+            const box = isPublic ? publicKeyBox : privateKeyBox;
+            const meta = isPublic ? publicMeta : privateMeta;
+            if (value) {
+                const byteLen = value.length / 2;
+                meta.textContent = `${byteLen} bytes · ${value.length} hex chars · ${isPublic ? 'Ed25519 public key' : 'Ed25519 private key (seed)'}`;
+                box.innerHTML = `<code>${value}</code>`;
+            } else {
+                meta.textContent = 'Awaiting seed.';
+                box.innerHTML = '<span class="placeholder">No key yet.</span>';
+            }
         }
 
         async function generateKeys(seed) {
