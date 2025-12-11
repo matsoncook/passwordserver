@@ -259,6 +259,9 @@
         const algorithmSelect = document.getElementById('algorithm');
         const copyButtons = document.querySelectorAll('.copy');
 
+        // Detect if we're served from a subpath (e.g., /crypto) and prefix API calls.
+        const apiBase = window.location.pathname.startsWith('/crypto') ? '/crypto' : '';
+
         function setMessage(text, isError = false) {
             messageBox.textContent = text;
             messageBox.classList.toggle('error', isError);
@@ -290,7 +293,8 @@
             generateBtn.disabled = true;
             try {
                 const endpoint = algorithm === 'rsa-2048' ? '/api/generate-rsa' : '/api/generate-keys';
-                const response = await fetch(endpoint, {
+                const url = `${apiBase}${endpoint}`;
+                const response = await fetch(url, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ seed })
