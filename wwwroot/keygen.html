@@ -71,6 +71,11 @@
             display: grid;
             gap: 12px;
         }
+        .inline {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
         label {
             font-size: 14px;
             color: #d1d5db;
@@ -210,6 +215,15 @@
                 <label for="seed">Seed phrase</label>
                 <textarea id="seed" name="seed" placeholder="Type a passphrase, mnemonic, or any string..." required></textarea>
             </div>
+            <div class="inline">
+                <div style="flex:1;">
+                    <label for="algorithm">Algorithm</label>
+                    <select id="algorithm" name="algorithm" style="width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--border);background:#0b1329;color:#e5e7eb;">
+                        <option value="ed25519">Ed25519 (deterministic, hex)</option>
+                        <option value="rsa-2048">RSA 2048 (deterministic, PEM)</option>
+                    </select>
+                </div>
+            </div>
             <div class="actions">
                 <button type="submit" class="primary" id="generateBtn">Generate keys</button>
                 <span class="status" id="statusText">Waiting for input.</span>
@@ -242,6 +256,7 @@
         const privateKeyBox = document.getElementById('privateKey');
         const publicMeta = document.getElementById('publicMeta');
         const privateMeta = document.getElementById('privateMeta');
+        const algorithmSelect = document.getElementById('algorithm');
         const copyButtons = document.querySelectorAll('.copy');
 
         function setMessage(text, isError = false) {
@@ -250,25 +265,32 @@
             messageBox.style.display = text ? 'block' : 'none';
         }
 
-        function setCode(target, value) {
+        function setCode(target, value, algorithm) {
             const isPublic = target === 'public';
             const box = isPublic ? publicKeyBox : privateKeyBox;
             const meta = isPublic ? publicMeta : privateMeta;
             if (value) {
-                const byteLen = value.length / 2;
-                meta.textContent = `${byteLen} bytes · ${value.length} hex chars · ${isPublic ? 'Ed25519 public key' : 'Ed25519 private key (seed)'}`;
-                box.innerHTML = `<code>${value}</code>`;
+                if (algorithm === 'ed25519') {
+                    const byteLen = value.length / 2;
+                    meta.textContent = `${byteLen} bytes · ${value.length} hex chars · ${isPublic ? 'Ed25519 public key' : 'Ed25519 private key (seed)'}`;
+                    box.innerHTML = `<code>${value}</code>`;
+                } else {
+                    const charLen = value.length;
+                    meta.textContent = `RSA 2048 ${isPublic ? 'public' : 'private'} key · PEM · ${charLen} chars`;
+                    box.innerHTML = `<pre style="margin:0;white-space:pre-wrap;">${value}</pre>`;
+                }
             } else {
                 meta.textContent = 'Awaiting seed.';
                 box.innerHTML = '<span class="placeholder">No key yet.</span>';
             }
         }
 
-        async function generateKeys(seed) {
+        async function generateKeys(seed, algorithm) {
             statusText.textContent = 'Contacting backend...';
             generateBtn.disabled = true;
             try {
-                const response = await fetch('/api/generate-keys', {
+                const endpoint = algorithm === 'rsa-2048' ? '/api/generate-rsa' : '/api/generate-keys';
+                const response = await fetch(endpoint, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ seed })
@@ -280,10 +302,10 @@
                 }
 
                 const data = await response.json();
-                setCode('public', data.public_key);
-                setCode('private', data.private_key);
+                setCode('public', data.public_key, algorithm);
+                setCode('private', data.private_key, algorithm);
                 statusText.textContent = 'Keys generated.';
-                setMessage('Success! Keep your private key secret.');
+                setMessage(`Success! ${algorithm === 'rsa-2048' ? 'PEM-encoded RSA 2048 keys generated.' : 'Keep your private key secret.'}`);
             } catch (err) {
                 console.error(err);
                 statusText.textContent = 'Something went wrong.';
@@ -296,13 +318,14 @@
         form.addEventListener('submit', (e) => {
             e.preventDefault();
             const seed = seedField.value.trim();
+            const algorithm = algorithmSelect.value;
             setMessage('');
             if (!seed) {
                 setMessage('Please enter a seed phrase.', true);
                 statusText.textContent = 'Seed required.';
                 return;
             }
-            generateKeys(seed);
+            generateKeys(seed, algorithm);
         });
 
         copyButtons.forEach(btn => {

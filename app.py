@@ -3,6 +3,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 import hashlib
 import nacl.signing
+from Crypto.PublicKey import RSA
 from pathlib import Path
 
 # Initialize the FastAPI application
@@ -69,6 +70,46 @@ async def generate_keys(payload: SeedRequest):
     return {
         "private_key": signing_key.encode().hex(),
         "public_key": verify_key.encode().hex(),
+    }
+
+
+def _deterministic_randfunc(seed: bytes):
+    """
+    Create a deterministic randfunc for RSA generation using SHA-256(counter || seed).
+    This makes RSA key generation reproducible for a given seed.
+    """
+    counter = 0
+
+    def randfunc(n: int) -> bytes:
+        nonlocal counter
+        output = b""
+        while len(output) < n:
+            counter += 1
+            output += hashlib.sha256(seed + counter.to_bytes(8, "big")).digest()
+        return output[:n]
+
+    return randfunc
+
+
+@app.post("/api/generate-rsa")
+async def generate_rsa(payload: SeedRequest):
+    """
+    Deterministically generate an RSA 2048 key pair from a seed using a seeded PRNG.
+    Returns PEM-encoded keys.
+    """
+    seed_value = payload.seed.strip()
+    if not seed_value:
+        raise HTTPException(status_code=400, detail="Seed cannot be empty.")
+
+    seed_bytes = hashlib.sha256(seed_value.encode()).digest()
+    randfunc = _deterministic_randfunc(seed_bytes)
+    rsa_key = RSA.generate(2048, randfunc=randfunc)
+    private_pem = rsa_key.export_key(format="PEM").decode()
+    public_pem = rsa_key.publickey().export_key(format="PEM").decode()
+
+    return {
+        "private_key": private_pem,
+        "public_key": public_pem,
     }
 
 # if __name__ == "__main__":
