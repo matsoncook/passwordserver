@@ -2,4 +2,4 @@ fastapi
 uvicorn
 python-multipart
 pynacl
-cryptograhy
+cryptography
