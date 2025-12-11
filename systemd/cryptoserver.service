@@ -5,7 +5,7 @@ Wants=network-online.target
 
 [Service]
 # Adjust these paths to your deployment location
-WorkingDirectory=/opt/passwordserver
+WorkingDirectory=/home/ubuntu/cryptoserver
 Environment="PYTHONUNBUFFERED=1"
 Environment="PATH=/opt/passwordserver/venv/bin:/usr/bin"
 ExecStart=/usr/bin/env uvicorn app:app --host 0.0.0.0 --port 8042 --workers 2

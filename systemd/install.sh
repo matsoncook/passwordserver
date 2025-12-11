@@ -1,4 +1,6 @@
-sudo cp systemd/passwordserver.service /etc/systemd/system/
+sudo cp systemd/cryptoserver.service /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable passwordserver
-sudo systemctl start passwordserver
+sudo systemctl enable cryptoserver
+sudo systemctl start cryptoserver
+
+sudo journalctl -f cryptoserver
